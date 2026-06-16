@@ -1,0 +1,27 @@
+# Phase 0b: classical SE-attention baseline (parameter-efficiency comparison point)
+# Usage:
+#   python -m src.train_baseline --config configs/se_attention.yaml
+#   (train_se_attention.py is a TODO; for now the SE model can be used via evaluate.py)
+
+data_root: asl-dataset
+output_dir: runs/densenet_se
+
+# Training — matched to quantum config for fair comparison
+epochs: 10
+batch_size: 32
+lr: 1.0e-3
+weight_decay: 1.0e-4
+img_size: 224
+
+# Data splits
+val_frac: 0.1
+test_frac: 0.1
+seed: 42
+num_workers: 4
+
+# Backbone — same freeze setting as quantum for matched comparison
+pretrained: true
+freeze_backbone: true
+
+# SE block
+reduction: 16   # hidden_dim = feature_dim // reduction = 1024 // 16 = 64

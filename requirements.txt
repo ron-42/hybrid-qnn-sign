@@ -1,0 +1,11 @@
+torch>=2.1
+torchvision>=0.16
+pennylane>=0.36
+pennylane-lightning>=0.36
+numpy
+pandas
+scikit-learn
+matplotlib
+pillow
+tqdm
+pyyaml

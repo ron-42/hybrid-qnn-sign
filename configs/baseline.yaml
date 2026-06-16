@@ -1,0 +1,24 @@
+# Phase 0: classical DenseNet121 baseline
+# Usage:
+#   python -m src.train_baseline --config configs/baseline.yaml
+#   make baseline DATA_ROOT=asl-dataset
+
+data_root: asl-dataset
+output_dir: runs/densenet_baseline
+
+# Training
+epochs: 10
+batch_size: 64
+lr: 3.0e-4
+weight_decay: 1.0e-4
+img_size: 224
+
+# Data splits (80 / 10 / 10 stratified)
+val_frac: 0.1
+test_frac: 0.1
+seed: 42
+num_workers: 4
+
+# Model
+pretrained: true
+freeze_backbone: false
