@@ -7,9 +7,9 @@ data_root: asl-dataset
 output_dir: runs/densenet_quantum
 
 # Training — smaller batch: quantum forward pass is slower than classical
-epochs: 3
+epochs: 15
 batch_size: 32
-lr: 1.0e-3
+lr: 3.0e-4
 weight_decay: 1.0e-4
 img_size: 224
 
@@ -21,7 +21,7 @@ num_workers: 4
 
 # Backbone — freeze first; unfreeze only if quantum layer learns well
 pretrained: true
-freeze_backbone: true
+freeze_backbone: false
 
 # Quantum attention block
 n_qubits: 8
