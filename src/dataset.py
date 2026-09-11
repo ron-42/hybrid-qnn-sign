@@ -94,11 +94,35 @@ def stratified_split(samples: List[Tuple[str, int]], val_frac: float, test_frac:
     return train_samples, val_samples, test_samples
 
 
+def stratified_subsample(samples: List[Tuple[str, int]], fraction: float, seed: int):
+    """Select a deterministic, class-stratified fraction of training samples."""
+    if not 0 < fraction <= 1:
+        raise ValueError(f"train_fraction must be in (0, 1], got {fraction}")
+    if fraction == 1:
+        return samples
+
+    labels = [sample[1] for sample in samples]
+    selected, _ = train_test_split(
+        samples,
+        train_size=fraction,
+        stratify=labels,
+        random_state=seed,
+    )
+    return selected
+
+
 def get_dataloaders(data_root: Path, img_size: int = 224, batch_size: int = 64,
                      val_frac: float = 0.1, test_frac: float = 0.1, seed: int = 42,
-                     num_workers: int = 4, output_dir: Path = None):
+                     num_workers: int = 4, output_dir: Path = None,
+                     train_fraction: float = 1.0, subsample_seed: int = None):
     samples, class_to_idx = collect_samples(data_root)
     train_samples, val_samples, test_samples = stratified_split(samples, val_frac, test_frac, seed)
+    full_train_size = len(train_samples)
+    train_samples = stratified_subsample(
+        train_samples,
+        fraction=train_fraction,
+        seed=seed if subsample_seed is None else subsample_seed,
+    )
 
     train_tf, eval_tf = build_transforms(img_size)
 
@@ -121,7 +145,8 @@ def get_dataloaders(data_root: Path, img_size: int = 224, batch_size: int = 64,
         print(f"Saved class_to_idx mapping to {output_dir / 'class_to_idx.json'}")
 
     print(f"Total samples: {len(samples)}")
-    print(f"  train: {len(train_samples)}")
+    print(f"  train (full split): {full_train_size}")
+    print(f"  train (fraction={train_fraction:g}): {len(train_samples)}")
     print(f"  val:   {len(val_samples)}")
     print(f"  test:  {len(test_samples)}")
     print(f"Classes ({len(class_to_idx)}): {list(class_to_idx.keys())}")

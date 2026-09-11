@@ -3,8 +3,8 @@ Standalone evaluation script: loads a saved checkpoint and runs the full
 held-out test split, then writes a classification report and a confusion
 matrix PNG.
 
-Works for ANY checkpoint produced by train_baseline.py or train_quantum.py —
-the checkpoint stores the model type in args.
+Works for checkpoints produced by train_baseline.py, train_quantum.py, or
+train_classical_attention.py.
 
 Usage:
     python -m src.evaluate \\
@@ -34,7 +34,7 @@ from .utils import get_device
 def load_model_from_checkpoint(ckpt: dict, device: torch.device):
     """
     Reconstruct the model from the checkpoint's saved args dict.
-    Supports DenseNetASL (baseline) and DenseNetQuantumAttention (quantum).
+    Supports DenseNetASL, classical controls, and the available quantum backbones.
     """
     saved_args = ckpt.get("args", {})
     class_to_idx = ckpt["class_to_idx"]
@@ -43,7 +43,15 @@ def load_model_from_checkpoint(ckpt: dict, device: torch.device):
     is_quantum = "n_qubits" in ckpt
 
     if is_quantum:
-        from .models.densenet_quantum_attention import build_model
+        backbone = saved_args.get("backbone", ckpt.get("backbone", "densenet"))
+        quantum_architecture = ckpt.get(
+            "quantum_architecture",
+            saved_args.get("quantum_architecture", "v1"),
+        )
+        if backbone == "resnet":
+            from .models.resnet_quantum_attention import build_model
+        else:
+            from .models.densenet_quantum_attention import build_model
         model = build_model(
             num_classes=num_classes,
             n_qubits=ckpt["n_qubits"],
@@ -51,8 +59,45 @@ def load_model_from_checkpoint(ckpt: dict, device: torch.device):
             pretrained=False,  # weights come from the checkpoint
             freeze_backbone=saved_args.get("freeze_backbone", True),
             device_name=ckpt.get("pennylane_device", "default.qubit"),
+            quantum_architecture=quantum_architecture,
         )
-        model_tag = f"quantum_q{ckpt['n_qubits']}_l{ckpt['n_layers']}"
+        model_tag = f"{backbone}_quantum_q{ckpt['n_qubits']}_l{ckpt['n_layers']}"
+        if quantum_architecture != "v1":
+            model_tag += f"_{quantum_architecture}"
+    elif ckpt.get("model_family") == "classical_attention":
+        attention_type = ckpt["attention_type"]
+        if attention_type == "se":
+            from .models.classical_attention import build_model
+
+            model = build_model(
+                num_classes=num_classes,
+                reduction=ckpt.get("reduction", 16),
+                pretrained=False,
+                freeze_backbone=saved_args.get("freeze_backbone", False),
+            )
+            model_tag = f"densenet_se_r{ckpt.get('reduction', 16)}"
+        elif attention_type == "mlp":
+            from .models.classical_attention import build_mlp_model
+
+            bottleneck_dim = ckpt.get("bottleneck_dim", 8)
+            model = build_mlp_model(
+                num_classes=num_classes,
+                bottleneck_dim=bottleneck_dim,
+                pretrained=False,
+                freeze_backbone=saved_args.get("freeze_backbone", False),
+            )
+            model_tag = f"densenet_mlp_b{bottleneck_dim}"
+        elif attention_type == "none":
+            from .models.densenet_baseline import build_model
+
+            model = build_model(
+                num_classes=num_classes,
+                pretrained=False,
+                freeze_backbone=saved_args.get("freeze_backbone", False),
+            )
+            model_tag = "densenet_none"
+        else:
+            raise ValueError(f"Unsupported classical attention type: {attention_type}")
     else:
         from .models.densenet_baseline import build_model
         model = build_model(num_classes=num_classes, pretrained=False)

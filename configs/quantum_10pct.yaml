@@ -1,0 +1,25 @@
+# 10% train-only low-data pilot: frozen DenseNet121 + QCA, seed 42.
+
+data_root: asl-dataset
+output_dir: runs/low_data_10pct_qca_seed42
+
+epochs: 15
+batch_size: 32
+lr: 1.0e-3
+weight_decay: 1.0e-4
+img_size: 224
+
+val_frac: 0.1
+test_frac: 0.1
+split_seed: 42
+train_fraction: 0.1
+seed: 42
+num_workers: 4
+
+backbone: densenet
+pretrained: true
+freeze_backbone: true
+
+n_qubits: 8
+n_layers: 2
+pennylane_device: default.qubit

@@ -1,5 +1,5 @@
 """
-Phase 2: train DenseNet121 + QuantumChannelAttention on the ASL Alphabet dataset.
+Phase 2: train a CNN backbone + QuantumChannelAttention on ASL Alphabet.
 
 Example (CLI):
     python -m src.train_quantum \\
@@ -27,8 +27,7 @@ from sklearn.metrics import classification_report
 from tqdm import tqdm
 
 from .dataset import get_dataloaders
-from .models.densenet_quantum_attention import build_model
-from .utils import merge_config_and_args, get_device
+from .utils import get_device, merge_config_and_args, save_resolved_config
 
 
 # ── Training loop ─────────────────────────────────────────────────────────────
@@ -81,15 +80,21 @@ def main():
     parser.add_argument("--test-frac", type=float, default=0.1)
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--split-seed", type=int, default=42,
+                        help="Fixed train/val/test split seed")
+    parser.add_argument("--train-fraction", type=float, default=1.0,
+                        help="Stratified fraction of the training split to use")
     # Training
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     # Backbone
+    parser.add_argument("--backbone", choices=["densenet", "resnet"], default="densenet",
+                        help="ImageNet-pretrained CNN backbone")
     parser.add_argument("--pretrained", action="store_true", default=True)
     parser.add_argument("--freeze-backbone", action="store_true", default=True,
-                        help="Freeze DenseNet weights; train only q_attn + classifier")
+                        help="Freeze CNN weights; train only q_attn + classifier")
     # Quantum attention
     parser.add_argument("--n-qubits", type=int, default=8,
                         help="Number of qubits (keep ≤10; sim cost ∝ 2^n_qubits)")
@@ -97,6 +102,8 @@ def main():
                         help="Number of StronglyEntanglingLayers in the PQC")
     parser.add_argument("--pennylane-device", type=str, default="default.qubit",
                         help="PennyLane device (default.qubit | lightning.qubit)")
+    parser.add_argument("--quantum-architecture", choices=["v1", "v2"], default="v1",
+                        help="v2 re-uploads inputs before each circuit layer")
 
     args = merge_config_and_args(parser)
 
@@ -105,9 +112,15 @@ def main():
 
     torch.manual_seed(args.seed)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    save_resolved_config(args, args.output_dir)
 
     device = get_device()
     print(f"Device: {device}")
+
+    if args.backbone == "resnet":
+        from .models.resnet_quantum_attention import build_model
+    else:
+        from .models.densenet_quantum_attention import build_model
 
     # ── Data ──────────────────────────────────────────────────────────────────
     train_loader, val_loader, test_loader, class_to_idx = get_dataloaders(
@@ -116,9 +129,11 @@ def main():
         batch_size=args.batch_size,
         val_frac=args.val_frac,
         test_frac=args.test_frac,
-        seed=args.seed,
+        seed=args.split_seed,
         num_workers=args.num_workers,
         output_dir=args.output_dir,
+        train_fraction=args.train_fraction,
+        subsample_seed=args.seed,
     )
     class_names = sorted(class_to_idx, key=class_to_idx.get)
 
@@ -130,14 +145,15 @@ def main():
         pretrained=args.pretrained,
         freeze_backbone=args.freeze_backbone,
         device_name=args.pennylane_device,
+        quantum_architecture=args.quantum_architecture,
     ).to(device)
 
     n_q_params = sum(p.numel() for p in model.q_attn.parameters())
     n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     n_total = sum(p.numel() for p in model.parameters())
     print(f"\n{'='*60}")
-    print(f"n_qubits={args.n_qubits}  n_layers={args.n_layers}  "
-          f"device={args.pennylane_device}")
+    print(f"backbone={args.backbone}  n_qubits={args.n_qubits}  n_layers={args.n_layers}  "
+          f"device={args.pennylane_device}  architecture={args.quantum_architecture}")
     print(f"Quantum attention params : {n_q_params:>10,}")
     print(f"Trainable params         : {n_trainable:>10,}")
     print(f"Total params             : {n_total:>10,}")
@@ -192,7 +208,11 @@ def main():
                     "n_qubits": args.n_qubits,
                     "n_layers": args.n_layers,
                     "pennylane_device": args.pennylane_device,
+                    "quantum_architecture": args.quantum_architecture,
                     "n_q_params": n_q_params,
+                    "train_fraction": args.train_fraction,
+                    "seed": args.seed,
+                    "split_seed": args.split_seed,
                 }, best_ckpt_path)
                 print(f"  -> new best checkpoint  val_acc={val_acc:.4f}")
 

@@ -38,6 +38,18 @@ def load_config(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def save_resolved_config(args: argparse.Namespace, output_dir: Path) -> Path:
+    """Write the effective CLI/YAML settings used for a training run."""
+    config = {
+        key: str(value) if isinstance(value, Path) else value
+        for key, value in vars(args).items()
+    }
+    path = Path(output_dir) / "resolved_config.yaml"
+    with open(path, "w") as f:
+        yaml.safe_dump(config, f, sort_keys=True)
+    return path
+
+
 def merge_config_and_args(
     parser: argparse.ArgumentParser, argv=None
 ) -> argparse.Namespace:

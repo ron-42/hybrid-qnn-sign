@@ -24,7 +24,8 @@ from .quantum_attention import QuantumChannelAttention
 class DenseNetQuantumAttention(nn.Module):
     def __init__(self, num_classes: int, n_qubits: int = 8, n_layers: int = 2,
                  pretrained: bool = True, freeze_backbone: bool = True,
-                 device_name: str = "default.qubit"):
+                 device_name: str = "default.qubit",
+                 quantum_architecture: str = "v1"):
         super().__init__()
         weights = DenseNet121_Weights.IMAGENET1K_V1 if pretrained else None
         backbone = densenet121(weights=weights)
@@ -34,7 +35,8 @@ class DenseNetQuantumAttention(nn.Module):
 
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.q_attn = QuantumChannelAttention(
-            feature_dim=feature_dim, n_qubits=n_qubits, n_layers=n_layers, device_name=device_name
+            feature_dim=feature_dim, n_qubits=n_qubits, n_layers=n_layers,
+            device_name=device_name, architecture=quantum_architecture,
         )
         self.classifier = nn.Linear(feature_dim, num_classes)
 
@@ -59,11 +61,12 @@ class DenseNetQuantumAttention(nn.Module):
 
 def build_model(num_classes: int, n_qubits: int = 8, n_layers: int = 2,
                  pretrained: bool = True, freeze_backbone: bool = True,
-                 device_name: str = "default.qubit") -> DenseNetQuantumAttention:
+                 device_name: str = "default.qubit",
+                 quantum_architecture: str = "v1") -> DenseNetQuantumAttention:
     return DenseNetQuantumAttention(
         num_classes=num_classes, n_qubits=n_qubits, n_layers=n_layers,
         pretrained=pretrained, freeze_backbone=freeze_backbone,
-        device_name=device_name,
+        device_name=device_name, quantum_architecture=quantum_architecture,
     )
 
 

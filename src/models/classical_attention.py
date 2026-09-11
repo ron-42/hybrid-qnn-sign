@@ -45,6 +45,67 @@ class SEBlock(nn.Module):
         return x * attn, attn
 
 
+# ── Parameter-matched MLP block ───────────────────────────────────────────────
+
+class MLPChannelAttention(nn.Module):
+    """Classical replacement for QCA with the same down/up projection sizes."""
+
+    def __init__(self, feature_dim: int, bottleneck_dim: int = 8):
+        super().__init__()
+        self.down_proj = nn.Linear(feature_dim, bottleneck_dim)
+        self.core = nn.Linear(bottleneck_dim, bottleneck_dim, bias=False)
+        self.up_proj = nn.Linear(bottleneck_dim, feature_dim)
+
+    def forward(self, x: torch.Tensor):
+        z = torch.tanh(self.down_proj(x))
+        z = torch.tanh(self.core(z))
+        attn = torch.sigmoid(self.up_proj(z))
+        return x * attn, attn
+
+
+class DenseNetMLPAttention(nn.Module):
+    """DenseNet121 + parameter-matched classical MLP channel attention."""
+
+    def __init__(self, num_classes: int, bottleneck_dim: int = 8,
+                 pretrained: bool = True, freeze_backbone: bool = False):
+        super().__init__()
+        weights = DenseNet121_Weights.IMAGENET1K_V1 if pretrained else None
+        backbone = densenet121(weights=weights)
+
+        self.features = backbone.features
+        feature_dim = backbone.classifier.in_features
+
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.mlp_attn = MLPChannelAttention(feature_dim, bottleneck_dim)
+        self.classifier = nn.Linear(feature_dim, num_classes)
+
+        if freeze_backbone:
+            for p in self.features.parameters():
+                p.requires_grad = False
+
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
+        f = torch.relu(self.features(x))
+        return self.pool(f).flatten(1)
+
+    def forward(self, x: torch.Tensor, return_attn: bool = False):
+        f_attn, attn = self.mlp_attn(self.forward_features(x))
+        logits = self.classifier(f_attn)
+        if return_attn:
+            return logits, attn
+        return logits
+
+
+def build_mlp_model(num_classes: int, bottleneck_dim: int = 8,
+                    pretrained: bool = True,
+                    freeze_backbone: bool = False) -> DenseNetMLPAttention:
+    return DenseNetMLPAttention(
+        num_classes=num_classes,
+        bottleneck_dim=bottleneck_dim,
+        pretrained=pretrained,
+        freeze_backbone=freeze_backbone,
+    )
+
+
 # ── CBAM channel sub-block (operates on pooled vector) ────────────────────────
 
 class CBAMChannelBlock(nn.Module):
@@ -160,11 +221,16 @@ def build_cbam_model(num_classes: int, reduction: int = 16,
 
 
 if __name__ == "__main__":
-    for ModelCls, name in [(DenseNetSEAttention, "SE"), (DenseNetCBAMAttention, "CBAM")]:
+    models = [
+        (DenseNetSEAttention, "SE", "se"),
+        (DenseNetCBAMAttention, "CBAM", "cbam"),
+        (DenseNetMLPAttention, "MLP", "mlp_attn"),
+    ]
+    for ModelCls, name, attention_attr in models:
         m = ModelCls(num_classes=29, pretrained=False)
         x = torch.randn(2, 3, 224, 224)
         logits, attn = m(x, return_attn=True)
-        n_attn = sum(p.numel() for p in (m.se if name == "SE" else m.cbam).parameters())
+        n_attn = sum(p.numel() for p in getattr(m, attention_attr).parameters())
         n_total = sum(p.numel() for p in m.parameters())
         print(f"[{name}] logits={logits.shape}  attn={attn.shape}  "
               f"attn_params={n_attn:,}  total_params={n_total:,}")

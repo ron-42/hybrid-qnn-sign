@@ -20,8 +20,15 @@ env/
 *.ipynb
 
 # ML / training outputs
-runs/*/
+runs/**
 !runs/.gitkeep
+!runs/low_data_results.csv
+!runs/low_data_summary.csv
+!runs/low_data_learning_curve.png
+!runs/mu_loso_results.csv
+!runs/mu_loso_summary.csv
+!runs/mu_loso_signer_accuracy.png
+!runs/mu_loso_confusion_matrices.png
 *.pt
 *.pth
 *.ckpt
@@ -29,11 +36,38 @@ runs/*/
 
 # Dataset (large binary files — store elsewhere / use DVC)
 asl-dataset/
+external-data/
 
 # Generated artefacts
 sample_grid.png
-*.png
-*.csv
+REPORT.*
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+
+# Paper-writing artifacts (kept local, not published with the code)
+paper/
+paper_state.json
+paper_story.md
+numeric_evidence.json
+claim_evidence_map.md
+citation_lock.json
+citation_requests.json
+citation_verification.md
+build_check.md
+reviewer_analysis.md
+project_inventory.md
+experiment_inventory.md
+figures/
+literature/
+plan/
+
+# Local agent/editor state and handoff
+.agents/
+.cursor/
+RESEARCH_HANDOFF.md
 
 # macOS
 .DS_Store

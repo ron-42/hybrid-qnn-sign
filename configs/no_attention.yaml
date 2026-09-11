@@ -1,0 +1,25 @@
+# Frozen DenseNet121 classifier-head control, matched to the QCA and SE runs.
+# Usage:
+#   python -m src.train_classical_attention --config configs/no_attention.yaml
+
+data_root: asl-dataset
+output_dir: runs/densenet_none_15ep_frozen
+
+# Training — matched to runs/densenet_quantum_15ep_frozen
+epochs: 15
+batch_size: 32
+lr: 1.0e-3
+weight_decay: 1.0e-4
+img_size: 224
+
+# Data splits
+val_frac: 0.1
+test_frac: 0.1
+seed: 42
+num_workers: 4
+
+# Backbone
+pretrained: true
+freeze_backbone: true
+
+attention_type: none

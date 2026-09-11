@@ -45,21 +45,33 @@ class QuantumChannelAttention(nn.Module):
         device_name: PennyLane device. "default.qubit" supports
             diff_method="backprop" (fast for prototyping). Switch to
             "lightning.qubit" + diff_method="adjoint" for larger n_qubits.
+        architecture: "v1" embeds inputs once; "v2" re-embeds them before
+            every variational layer while keeping the same trainable parameters.
     """
 
     def __init__(self, feature_dim: int, n_qubits: int = 8, n_layers: int = 2,
-                 device_name: str = "default.qubit"):
+                 device_name: str = "default.qubit", architecture: str = "v1"):
         super().__init__()
+        if architecture not in {"v1", "v2"}:
+            raise ValueError(f"Unsupported quantum architecture: {architecture}")
         self.n_qubits = n_qubits
+        self.architecture = architecture
 
         dev = qml.device(device_name, wires=n_qubits)
 
         @qml.qnode(dev, interface="torch", diff_method="backprop")
         def circuit(inputs, weights):
-            # Angle embedding: classical features -> rotation angles
-            qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
-            # Entangling variational layers (this is the "trainable" part)
-            qml.StronglyEntanglingLayers(weights, wires=range(n_qubits))
+            if architecture == "v1":
+                qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
+                qml.StronglyEntanglingLayers(weights, wires=range(n_qubits))
+            else:
+                for layer_idx in range(n_layers):
+                    qml.AngleEmbedding(inputs, wires=range(n_qubits), rotation="Y")
+                    qml.StronglyEntanglingLayers(
+                        weights[layer_idx:layer_idx + 1],
+                        wires=range(n_qubits),
+                        ranges=[(layer_idx % n_qubits) + 1],
+                    )
             # Measurement: one expectation value per qubit, in [-1, 1]
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
 
